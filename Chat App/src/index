@@ -1,0 +1,51 @@
+const path = require('path')
+const http = require('http')
+const express = require('express')
+const socketio = require('socket.io')
+const filter = require('bad-words');
+
+const app = express()
+const server = http.createServer(app)
+const io = socketio(server)
+
+const port = process.env.PORT || 3000
+const publicDirectoryPath = path.join(__dirname, '../public')
+
+app.use(express.static(publicDirectoryPath))
+
+io.on('connection', (socket) => {
+    console.log('New WebSocket connection')
+
+    socket.emit('message', 'Welcome!')
+
+	// sends a message to everyone other than the user
+    socket.broadcast.emit('message', 'A new user has joined!')
+
+    socket.on('sendMessage', (message, callback) => {
+		const filter = new filter()
+		
+		if(filter.isProfane(message)) {
+			return callback('Profanity is not allowed')
+		}
+        //console.log('newMessage');
+        io.emit('message', message)
+		// This is an acknowledgement back to the client  
+		callback('Delivered')
+    })
+
+	// Sends a message to everyone that a user has left
+    socket.on('disconnect', () => {
+        io.emit('message', 'A user has left!')
+    })
+
+	// Sends a message to everyone that user has shared coordinates
+	socket.on('sendLocation', ({latitude, longitude}, callback) => {
+		io.emit('message',`https://google.com/maps?q=${latitude},${longitude}`)
+		
+		callback('Location shared!')
+	})
+})
+
+server.listen(port, () => {
+    console.log(`Server is up on port ${port}!`)
+	})
